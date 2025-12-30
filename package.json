@@ -1,0 +1,22 @@
+{
+  "name": "agent---bulk-research-automation",
+  "version": "1.0.0",
+  "description": "This agent scans a set of systems and determine if REST API's for user management api endpoints, free trial are available and give references to official api documentations and software free trial link and gives a verdict whether it is configurable or not",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.1.8",
+    "@langchain/langgraph": "^1.0.7",
+    "@langchain/openai": "^1.2.0",
+    "@langchain/tavily": "^1.2.0",
+    "@openrouter/sdk": "^0.3.11",
+    "dotenv": "^17.2.3",
+    "readline": "^1.3.0",
+    "zod": "^4.2.1"
+  }
+}
