@@ -6,8 +6,10 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
 import { PROMPT } from "./prompt.js"
 import promptSync from "prompt-sync";
-import OpenAI from "openai";
 import { ChatGroq } from "@langchain/groq"
+import fs from "fs";
+import ExcelJS from "exceljs";
+
 const prompt = promptSync();
 
 dotenv.config();
@@ -26,15 +28,11 @@ const tools = [tool];
 const toolNode = new ToolNode(tools);
 
 
-const llm = new ChatOpenAI(
-    {
-    model: 'google/gemini-2.5-flash-lite',
-    configuration: {
-        apiKey: process.env.OPENROUTER_API_KEY,
-        baseURL: "https://openrouter.ai/api/v1",
-    }
-  },
-).bindTools(tools);
+const llm = new ChatGroq({
+    model: "openai/gpt-oss-120b",
+    temperature: 0,
+    maxRetries: 2,
+}).bindTools(tools);
 
 async function llmCall(state){
      const messages = state.messages.slice(-6);
@@ -112,23 +110,50 @@ function processAndStore(raw, batcharr,i){
       }
 }
 
+async function convertToExcel() {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet("API_Results");
+
+  // Add headers
+  const headers = Object.keys(completed_systems[0]);
+  worksheet.addRow(headers);
+
+  // Add rows
+  completed_systems.forEach(obj => {
+    worksheet.addRow(Object.values(obj));
+  });
+
+  await workbook.xlsx.writeFile("output.xlsx");
+  console.log("✅ Data written to output.xlsx successfully!");
+}
+
 function printCompletedSystems(){
     for(let i = 0; i<completed_systems.length; i++){
         console.log(completed_systems[i]);
         console.log("-------------------------------");
     }
 }
+
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Core functionality & control flow
 async function main(){
 
     // List of Target systems
     const systems = [
-        "GitHub","whatsapp"
+        "Synchroteam",
+        "Yeastar",
+        "VoIPstudio",
+        "Castr",
+        "Clipchamp",
     ];
+
 
     // Divide list in chunks of Chunk Size
     const chunkSize = 2; 
     const batches = chunkArray(systems, chunkSize);
 
+    // Process each batch
     for (let i = 0; i < batches.length; i++) {
         let isSuccess = true;
         const batch = batches[i];
@@ -136,22 +161,34 @@ async function main(){
         const batcharr = batch.join(", ");
 
         console.log(`\n Processing batch ${i + 1}/${batches.length}: ${batcharr}`);
-
+        
+        // Invoke the app with the batch of systems
         try {
             finalState = await app.invoke({
                 messages:[
                     { role: "user", 
                       content: `
-                                For the following SaaS systems: ${batcharr}
-                                mention free trial is available or not in format as-
+                                
+                                I am evaluating whether these system ${batcharr} supports user management features via REST APIs. Please provide detailed information on the following format - don't tell extra details:
+                                
+                                eg. output should be strictly in array of objects format as below
                                 [{
-                                 "name":"eg. Appfigures",
-                                 "Free Trial":"No"
+                                    "application_name": "eg. HubSpot",
+                                    "category": "eg. CRM",
+                                    "primary_use_case": "eg. Marketing & Sales Automation",
+                                    "free_trial_available": "refer to official pricing page or reliable source, free trial refers to a full access to a software including user management API's. Free trial does not mean demo to the software, we should be actually able to use their features and user management apis. Expected output should be Yes or No also if yes then for how many days free trial is for along with what kind of access it offer like is it limited to some features or full software along with confidence score (how reliable the evidence/ source of information is on scale of 1-100%) for eg. Yes (14 days - Full) - 40%, Yes(21 days - limited) - 60%, No (Demo) - 80%, No (Contact Support) - 90%, No(Card Details) - 100%,Check Manually",
+                                    "api_type": "REST API",
+                                    user_management_api_availibility:"are the api's to fetch all users and roles or groups or any set of permissions availabl eg. Yes - /users, /roles "
+                                    "website": "https://hubspot.com",
+                                    "payment_details":"Required credit card for free trial"
                                 }]
                                 
                     ` }
                 ]
             });
+
+            await delay(28000); // 28 seconds
+
         } catch (err) {
             isSuccess = false;
 
@@ -179,26 +216,48 @@ async function main(){
         // perform cleaning
         let raw = batchResult.content.replace(/```json/gi, "").replace(/```/g, "").trim();
         
+        console.log("Raw AI response - ", raw);
+
+        // Process and store the raw data
         processAndStore(raw,batcharr,i);
+
+        // Print completed systems
         printCompletedSystems();
 
+        // Delay between batches to avoid rate limits
         await new Promise((r) => setTimeout(r, 3000)); 
 
         console.log(`Batch ${i+1} AI Response: `, batchResult.content)
+
+        // Print tool call logs
         console.log("Tools used -> ");
         printToolCallLogs(finalState);
 
     }
-   
+
+    // Convert final results to excel
+    await convertToExcel(); 
+
+    // Close readline interface
     rl.close();
+
+    // final summary
+    console.log("\n===== Summary =====");
+    console.log(`Total Systems Processed: ${completed_systems.length}`);
+    console.log(`Total Systems Skipped: ${skipped_systems.length}`);
+
+    if(skipped_systems.length>0){
+        console.log("Skipped Systems due to API errors: ", skipped_systems);
+    }
+    else{
+        console.log("All systems processed successfully.");
+    }
 }
 
+
+
+// Run the main function
 main();
 
-if(skipped_systems.length>0){
-    console.log("Skipped Systems due to API errors: ", skipped_systems);
-}
-else{
-    console.log("All systems processed successfully.");
-}
+
         
