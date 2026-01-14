@@ -6,7 +6,7 @@ import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { ChatOpenAI } from "@langchain/openai";
 import { PROMPT } from "./prompt.js"
 import promptSync from "prompt-sync";
-import { ChatGroq } from "@langchain/groq"
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import fs from "fs";
 import ExcelJS from "exceljs";
 
@@ -28,15 +28,19 @@ const tools = [tool];
 const toolNode = new ToolNode(tools);
 
 
-const llm = new ChatGroq({
-    model: "openai/gpt-oss-120b",
+const llm = new ChatGoogleGenerativeAI({
+    model: "gemini-3-flash-preview",
     temperature: 0,
     maxRetries: 2,
 }).bindTools(tools);
 
+
 async function llmCall(state){
-     const messages = state.messages.slice(-6);
-     const response = await llm.invoke(messages);
+    //  const messages = state.messages.slice(-6);
+    // console.log("LLM ko ye input:")
+    // console.log(state.messages);
+    // console.log("=-----------------------------=")
+     const response = await llm.invoke(state.messages);
     return { messages: [response] };
 }
 
@@ -141,11 +145,7 @@ async function main(){
 
     // List of Target systems
     const systems = [
-        "Synchroteam",
-        "Yeastar",
-        "VoIPstudio",
-        "Castr",
-        "Clipchamp",
+
     ];
 
 
@@ -167,9 +167,9 @@ async function main(){
             finalState = await app.invoke({
                 messages:[
                     { role: "user", 
-                      content: `
-                                
-                                I am evaluating whether these system ${batcharr} supports user management features via REST APIs. Please provide detailed information on the following format - don't tell extra details:
+                      content: `    
+                                I am evaluating whether these system ${batcharr} supports user management features via REST APIs. 
+                                must do tool call atmost twice per system to get realtime and correct data once for user management API endpoints checking & another time for free trial details. Provide detailed information on the following format - don't tell extra details:
                                 
                                 eg. output should be strictly in array of objects format as below
                                 [{
@@ -180,14 +180,14 @@ async function main(){
                                     "api_type": "REST API",
                                     user_management_api_availibility:"are the api's to fetch all users and roles or groups or any set of permissions availabl eg. Yes - /users, /roles "
                                     "website": "https://hubspot.com",
-                                    "payment_details":"Required credit card for free trial"
+                                    "payment_details":"eg. Required card details for free trial"
                                 }]
                                 
                     ` }
                 ]
             });
 
-            await delay(28000); // 28 seconds
+            await delay(5000); // 5 seconds
 
         } catch (err) {
             isSuccess = false;
